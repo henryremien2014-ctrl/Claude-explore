@@ -29,9 +29,15 @@ like the pet, the buyer gets a full refund.
 - Etsy: $0.20 per listing (renews every 4 months or on each sale), about 6.5%
   transaction fee, plus payment processing of roughly 3% + $0.25. Etsy's
   offsite ads take 15% of a sale they bring in.
-- Higgsfield: already on the Plus plan. Credits per order will be measured on
-  the first samples and written here.
-- Start-up spend: about $2 in listing fees. No ads until the shop sells on its own.
+- Higgsfield: already on the Plus plan. From the account's own history:
+  Nano Banana 2 is 0 credits, Nano Banana Pro 2 credits per image, Kling 3.0
+  7 credits per clip. Estimated cost is 6–10 credits per portrait order and
+  15–25 credits per Living Portrait order.
+- Start-up spend: Etsy's one-time shop setup fee ($15–29, depending on
+  country) plus about $1 in listing fees. No ads until the shop sells on its own.
+- What you keep per sale: about $21 of a $24 portrait and about $31 of a $36
+  Living Portrait, after Etsy fees and credits. That's before offsite ads,
+  which apply only to sales they bring in.
 
 ## Setup checklist
 
