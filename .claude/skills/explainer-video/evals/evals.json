@@ -1,0 +1,61 @@
+{
+  "skill_name": "explainer-video",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I run a small podcast editing service and want one of those isometric 'how it works' explainer videos for my website. The steps are: book a free call, upload your raw audio, we edit and mix it, you review the cut, and your episode goes live. Mention somewhere that episodes come back in 3 days.",
+      "expected_output": "Style 3: a 20-second 1920x1080 MP4 with 5 isometric blocks that rise in order, a dot travelling between them, plain-word labels readable on a phone, a stills check at each step, and a report listing files and Done-means checks.",
+      "files": [],
+      "expectations": [
+        "MP4 is 1920x1080",
+        "Video is 20 seconds long (within 0.5 s)",
+        "All five steps appear as plain-word labels on screen",
+        "The 3-day turnaround is stated on screen",
+        "Steps are isometric blocks that rise into place one after another",
+        "A dot travels along a path from each block to the next",
+        "Labels are readable on a phone (block label text at least 60 px on the 1920-wide frame, about 12 pt upright)",
+        "Nothing overlaps or is cut off at the frame edge in the final frame",
+        "Avoid list respected: no drop shadows, no neon colours, no floating particles, no camera spin",
+        "A still was checked for each of the 5 steps (stills exist and the report refers to them)",
+        "Final report lists the files created and confirms each Done-means check"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "make a 45 second whiteboard style explainer video about how compound interest works. it's for the intro module of a beginner personal finance course so keep it simple",
+      "expected_output": "Style 2: a 6-scene script, six black-line SVG drawings (no fills), and a 45-second 1920x1080 MP4 where each drawing animates on stroke by stroke with a short label, and each drawing finishes before the next scene.",
+      "files": [],
+      "expectations": [
+        "A 6-scene script was written as a file",
+        "Six SVG files exist, one drawing per scene",
+        "SVG drawings use black lines only, with no colour fills",
+        "MP4 is 1920x1080",
+        "Video is 45 seconds long (within 0.5 s)",
+        "Drawings animate on stroke by stroke (a mid-scene still shows a partial drawing)",
+        "Every drawing is complete before the next scene starts",
+        "Each scene shows a short label under its drawing",
+        "Avoid list respected: no drawing hand, no clip art, no colour fills, one drawing per scene",
+        "Final report lists the files created and confirms each Done-means check"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Here's our 2025 monthly signups export: /tmp/claude-0/-home-user-Claude-explore/a5730f27-3123-5058-8ba7-92c228ef47de/scratchpad/skill-dev/explainer-video-workspace/inputs/signups-2025.csv - turn it into a short animated chart video I can drop into our investor update.",
+      "expected_output": "Style 4: a ~30-second MP4 with a title card stating the main finding (November peak, 4,820), a chart type justified in one sentence, numbers counting up to the exact CSV values, the top value highlighted, no pie/3D/legend, and 5 values checked against the CSV.",
+      "files": [
+        "evals/files/signups-2025.csv"
+      ],
+      "expectations": [
+        "Video is about 30 seconds long (25-35 s)",
+        "The final message names the chart type with a one-sentence reason",
+        "Opens with a title card that states the main finding (November peak of 4,820)",
+        "Numbers count up (a mid-build still shows values below their final values)",
+        "Every value shown at the end matches the CSV (all 12 months checked from a still)",
+        "The top value (November, 4,820) is highlighted",
+        "Avoid list respected: no pie chart, no 3D bars, no legend to decode, no gridline on every value",
+        "The final message lists at least 5 values checked against the CSV",
+        "Final report lists the files created"
+      ]
+    }
+  ]
+}
