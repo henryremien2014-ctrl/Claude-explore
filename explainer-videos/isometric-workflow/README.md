@@ -53,8 +53,9 @@ row (1 and 3) can use two lines. Adding a 5th step needs a smaller `UNIT` in
   1920×1080, 30 fps, 600 decoded frames, 20.000 s.
 - **Every label readable on a phone screen.** Labels are 68 px tall in the
   1080p frame. That is about 13.8 pt on a 390-pt-wide phone held upright
-  (the smallest common case) and about 30 pt full-screen sideways. The title
-  comes to 15.4 pt and the footer to 10.6 pt. Checked on a 390-px-wide
+  (the smallest common case) and about 25 pt full-screen sideways. The title
+  comes to 15.4 pt, the footer to 10.6 pt and the step numbers to 8.1 pt.
+  Checked on a 390-px-wide
   downscale: [`out/stills/phone-width-390px.png`](out/stills/phone-width-390px.png).
 - **A still checked at each step.** Each still was taken from the encoded MP4
   after that step's block, icon and label had settled. In every one there is
