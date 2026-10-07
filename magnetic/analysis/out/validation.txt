@@ -1,0 +1,24 @@
+[ok] tempo: 149.998 bpm vs 150.0
+[ok] bar grid: worst bar-line error 0.65 ms
+[ok] window: [3.2004, 24.0007] vs [3.2, 24.0]
+[ok] kicks: 31/31 found, 0 false [], missed [], median timing error 0.5 ms
+[XX] snares: 7/9 found, 0 false [], missed [12.0, 21.6], median timing error 0.4 ms
+[ok] stutter rolls: 5/5 with the right division, 5 detected
+[ok] dead silences: 7/7 matched to 2 ms
+[ok] glide tape-stop: 10.41-11.31 s vs 10.40-11.20 s, speed 0.89->0.01
+[ok] glide riser: 13.18-14.30 s vs 12.80-14.30 s, speed 0.00->1.33
+[ok] glide power-down: 17.61-18.80 s vs 17.60-18.80 s, speed 0.95->0.01
+[ok] glide tape-start: 22.40-24.00 s vs 22.40-24.00 s, speed 0.00->1.52
+[ok] no phantom glides: 0 extra []
+     tape speed MAE over the window 0.017
+     speed MAE in tape-stop  0.047  (max 0.10)
+     speed MAE in riser      0.085  (max 0.21)
+     speed MAE in power-down 0.040  (max 0.10)
+     speed MAE in tape-start 0.070  (max 0.22)
+[ok] tape clock: measured 15.85 s of tape vs true 16.05 s over 20.8 s
+[XX] falling notes (breakdown): 4/5 found, false [], missed [12.8]
+[XX] gated chops: 9/10 found, false [], missed [17.0]
+[XX] impacts: 2/3 found, false [], missed [6.4]
+[ok] drops: 2/2 found, false [], missed []
+     808 pitch dive measured -2.22 st (synth tail dive: -5 st, diluted by the sub underneath)
+SOME CHECKS FAILED

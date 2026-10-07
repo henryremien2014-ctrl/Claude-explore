@@ -1,0 +1,4 @@
+# Reproducible in about a minute by audio/synth.py and analysis/analyze.py
+*.npy
+*.npz
+__pycache__/
