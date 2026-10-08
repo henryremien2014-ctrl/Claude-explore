@@ -176,7 +176,7 @@ def tape_material(img):
     col = t.ramp(sv, MAGMA)
     edge = t.mul(t.smoothstep(0.0, 0.06, uy), t.smoothstep(1.0, 0.94, uy))
     bsdf = principled(t, **{"Base Color": (0.012, 0.008, 0.007, 1.0), "Roughness": 0.22, "IOR": 1.5,
-                            "Emission Color": col, "Emission Strength": t.mul(t.mul(t.pow(sv, 3.0), edge), 1.6)})
+                            "Emission Color": col, "Emission Strength": t.mul(t.mul(t.pow(sv, 3.0), edge), 0.9)})
     output(t, surface=bsdf)
     return m
 
@@ -203,9 +203,9 @@ def ring_mesh(name, radius, width, seg=720):
 def build_rings(coll, parent, img):
     mat = tape_material(img)
     rings = []
-    spec = ((2.05, 0.075, (math.radians(72), 0.0, 0.0)),
-            (2.55, 0.060, (math.radians(-28), math.radians(58), 0.0)),
-            (3.10, 0.050, (math.radians(18), math.radians(-35), math.radians(20))))
+    spec = ((2.45, 0.050, (math.radians(72), 0.0, 0.0)),
+            (3.05, 0.042, (math.radians(-28), math.radians(58), 0.0)),
+            (3.75, 0.036, (math.radians(18), math.radians(-35), math.radians(20))))
     for i, (r, w, rot) in enumerate(spec):
         tilt = bpy.data.objects.new(f"RING_TILT_{i}", None)
         coll.objects.link(tilt)
@@ -412,10 +412,13 @@ def build_lights(coll, root):
     from common import look_at_quat
     out = {}
     target = (0.0, 0.0, 1.75)
-    for name, col, loc, size, power in (("SB_TOP", GOLD, (0.5, -1.0, 9.0), (6, 6), 20.0),
-                                        ("SB_LEFT", VIOLET, (-5.5, 0.5, 3.0), (3.5, 7), 26.0),
-                                        ("SB_RIGHT", MAGENTA, (5.5, -0.5, 2.6), (3.5, 7), 24.0),
-                                        ("SB_BACK", CORAL, (0.0, -6.0, 3.5), (7, 2.5), 16.0)):
+    for name, col, loc, size, power in (("SB_TOP", GOLD, (0.5, -0.5, 7.5), (9, 9), 34.0),
+                                        ("SB_LEFT", VIOLET, (-4.8, 0.8, 2.8), (5, 9), 44.0),
+                                        ("SB_RIGHT", MAGENTA, (4.8, -0.6, 2.4), (5, 9), 40.0),
+                                        ("SB_BACK", CORAL, (0.0, -5.2, 3.2), (9, 4), 30.0),
+                                        ("SB_FRONT", VIOLET, (0.3, 5.5, 3.6), (8, 3), 14.0),
+                                        ("SB_STRIP_L", PALE, (-3.2, 2.6, 2.4), (0.5, 6), 90.0),
+                                        ("SB_STRIP_R", GOLD, (3.0, 2.9, 1.9), (0.5, 6), 80.0)):
         me = bpy.data.meshes.new(name)
         sx, sy = size
         me.from_pydata([(-sx / 2, -sy / 2, 0), (sx / 2, -sy / 2, 0), (sx / 2, sy / 2, 0), (-sx / 2, sy / 2, 0)], [], [(0, 1, 2, 3)])
@@ -466,3 +469,19 @@ def link_lights(lights, receivers, haze=None):
         elif name == "KEY":
             ob.light_linking.receiver_collection = key
     return sb, key
+
+
+def world_background(wd, strength=0.06):
+    """Deep violet horizon fading to black at the zenith and below: the hero's silhouette and
+    spikes always reflect a little form, and wide shots get depth instead of a void."""
+    wd.use_nodes = True
+    t = Tree(wd.node_tree)
+    wd.node_tree.nodes.clear()
+    tc = t.node("ShaderNodeTexCoord").outputs["Generated"]
+    _, _, z = t.xyz(t.normalize(t.vsub(tc, (0.5, 0.5, 0.5))))
+    band = t.math("EXPONENT", t.mul(t.mul(t.sub(z, 0.06), t.sub(z, 0.06)), -18.0))
+    col = t.ramp(t.mul(band, 0.42), MAGMA)
+    bg = t.node("ShaderNodeBackground")
+    t.feed(bg, {"Color": col, "Strength": t.mul(band, strength * 10.0)})
+    o = t.node("ShaderNodeOutputWorld")
+    t.link(bg.outputs[0], o.inputs["Surface"])

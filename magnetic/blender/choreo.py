@@ -211,11 +211,11 @@ def main():
                 T = np.array([0.001 * math.cos(ang), 0.001 * math.sin(ang), 0.0])
                 ln, fd, fs = 30.0, 26.0, 16.0
             elif n == "reveal":
-                L = np.array([-13.0 + 2.6 * uu, 0.8 - 0.25 * uu, 0.95 + 0.25 * uu])
-                T = HERO_C + np.array([0.0, 0.0, 0.15])
-                ln, fd, fs = 22.0, np.linalg.norm(L - HERO_C), 4.0
+                L = np.array([-9.6 + 2.2 * uu, 0.85 - 0.2 * uu, 1.05 + 0.25 * uu])
+                T = HERO_C + np.array([0.0, 0.0, 0.10])
+                ln, fd, fs = 24.0, np.linalg.norm(L - HERO_C), 4.0
             elif n == "orbit":
-                L = orbit(205 + 55 * uu, 5.0, 0.65)
+                L = orbit(205 + 55 * uu, 4.4, 0.65)
                 T = HERO_C
                 ln, fd, fs = 35.0, 4.2, 2.8
             elif n == "low":
@@ -232,13 +232,13 @@ def main():
                 T = HERO_C
                 ln, fd, fs = 100.0 * d / 15.0, d - 0.9, 5.6
             elif n == "open":
-                L = orbit(68, 3.4 - 0.35 * uu, 0.25)
-                T = HERO_C + np.array([0.0, 0.0, 0.05])
-                ln, fd, fs = 50.0, 3.4 - 0.35 * uu - 0.9, 2.4
+                L = orbit(70, 2.95 - 0.3 * uu, 0.12)
+                T = HERO_C + np.array([0.0, 0.0, 0.04])
+                ln, fd, fs = 50.0, 2.95 - 0.3 * uu - 0.95, 2.4
             elif n == "drop_a":
-                L = np.array([3.6 - 1.8 * uu, 4.6 + 0.4 * uu, 0.45 + 0.25 * uu])
-                T = HERO_C
-                ln, fd, fs = 24.0, 5.0, 4.0
+                L = np.array([4.4 - 1.7 * uu, 1.25 + 0.45 * uu, 0.30 + 0.22 * uu])   # low in the river channel
+                T = HERO_C + np.array([0.0, 0.0, 0.1])
+                ln, fd, fs = 24.0, 4.0, 4.0
             elif n == "drop_b":
                 L = orbit(-55 + 15 * uu, 2.9, -0.1)
                 T = HERO_C
@@ -256,7 +256,7 @@ def main():
                 T = HERO_C + np.array([0.0, 0.0, 0.02])
                 ln, fd, fs = 65.0, 1.85, 2.2
             elif n == "kaleido":
-                L = E_stare + eye_dir_stare * (5.6 - 0.15 * uu)
+                L = E_stare + eye_dir_stare * (5.6 - 0.15 * uu) + np.array([0.0, 0.0, 0.7])   # clear of the walls
                 T = E_stare
                 ln, fd, fs = 35.0, 5.3, 5.6
             else:                                                       # dive: lands on frame -1 of the stare
@@ -341,8 +341,8 @@ def main():
     # ----------------------------------------------------------------- hero facing (world time) and gaze
     face_q = np.zeros((F, 4))
     eye_q = np.zeros((F, 4))
-    offsets = {"stare": 0, "cev": 0, "reveal": 0, "orbit": 25, "low": -20, "bullet": 0, "vertigo": 0, "open": 18,
-               "drop_a": 22, "drop_b": -25, "melt": 12, "slam": 20, "close": 12, "kaleido": 0, "dive": 0}
+    offsets = {"stare": 0, "cev": 0, "reveal": 0, "orbit": 25, "low": -20, "bullet": 0, "vertigo": 0, "open": 6,
+               "drop_a": 14, "drop_b": -12, "melt": 10, "slam": 16, "close": 4, "kaleido": 0, "dive": 0}
     q = None
     for i in range(F):
         s = shots[shot_of[i]]

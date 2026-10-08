@@ -200,11 +200,11 @@ def ferrofluid_material():
     tip = t.node("ShaderNodeAttribute", attribute_name="tip").outputs["Fac"]
     drift = t.noise(tc, scale=2.2, detail=3.0)
     film = t.add(t.add(t.mul(drift, 75.0), 250.0), t.mul(tip, -25.0))   # 250-325 nm: gold..violet, never teal
-    rough = t.add(t.mul(t.noise(tc, scale=7.0, detail=2.0), 0.05), 0.035)
+    rough = t.add(t.mul(t.noise(tc, scale=7.0, detail=2.0), 0.035), 0.022)
     bump = t.node("ShaderNodeBump", invert=False)
     t.feed(bump, {"Strength": 0.06, "Distance": 0.004, "Height": t.noise(tc, scale=55.0, detail=3.0)})
     bsdf = principled(t, **{"Base Color": (0.0035, 0.0032, 0.0042, 1), "Metallic": 0.0, "Roughness": rough,
-                            "IOR": 1.52, "Thin Film Thickness": film, "Thin Film IOR": 1.36,
+                            "IOR": 1.6, "Specular IOR Level": 0.62, "Thin Film Thickness": film, "Thin Film IOR": 1.36,
                             "Normal": bump.outputs[0]})
     output(t, surface=bsdf)
     return m
@@ -239,12 +239,14 @@ def eye_material():
     dc = t.div(t.sub(s, sc), 0.035)
     coll = t.math("EXPONENT", t.mul(t.mul(dc, dc), -1.0))
     limbal = t.smoothstep(0.74, 1.0, s)
-    rim = t.math("EXPONENT", t.mul(t.mul(t.div(s, 0.05), t.div(s, 0.05)), -1.0))
-    v = t.add(t.add(t.mul(fibres, 0.55), t.mul(fine, 0.18)), t.mul(coll, 0.38))
-    v = t.sub(t.sub(t.add(v, t.mul(t.sub(1.0, s), 0.18)), t.mul(crypt, 0.32)), t.mul(limbal, 0.62))
-    v = t.clamp01(t.add(v, -0.02))
+    rim = t.math("EXPONENT", t.mul(t.mul(t.div(s, 0.028), t.div(s, 0.028)), -1.0))
+    zone = t.sub(1.0, t.smoothstep(0.05, 0.62, s))                 # 1 at the pupil, 0 past the collarette
+    v = t.add(t.add(t.mul(zone, 0.42), 0.30), t.mul(t.sub(fibres, 0.5), 0.42))
+    v = t.add(t.add(v, t.mul(t.sub(fine, 0.5), 0.12)), t.mul(coll, 0.20))
+    v = t.sub(t.sub(v, t.mul(crypt, 0.22)), t.mul(limbal, 0.45))
+    v = t.clamp01(v)
     iris_col = t.ramp(v, MAGMA)
-    rim_col = t.ramp(t.add(t.mul(rim, 0.25), 0.72), MAGMA)
+    rim_col = t.ramp(0.86, MAGMA)
 
     pupil_mask = t.sub(1.0, t.smoothstep(t.sub(rp, 0.025), t.add(rp, 0.004), rho))
     iris_mask = t.sub(1.0, t.smoothstep(0.985, 1.035, rho))
@@ -256,7 +258,7 @@ def eye_material():
     t.feed(mult, {"Factor": 1.0, 6: iris_col, 7: (0.55, 0.55, 0.55, 1.0)})
     em_iris = t.node("ShaderNodeMix", data_type="RGBA", blend_type="ADD")
     t.feed(em_iris, {"Factor": rim, 6: mult.outputs[2], 7: rim_col})
-    em_strength = t.mul(t.mul(iris_mask, t.sub(1.0, pupil_mask)), t.mul(glow_node.outputs[0], t.madd(rim, 6.0, 1.2)))
+    em_strength = t.mul(t.mul(iris_mask, t.sub(1.0, pupil_mask)), t.mul(glow_node.outputs[0], t.madd(rim, 3.2, 0.55)))
     bsdf = principled(t, **{"Base Color": base, "Metallic": metal, "Roughness": rough,
                             "IOR": t.mix(1.5, 1.85, pupil_mask), "Coat Weight": iris_mask, "Coat Roughness": 0.0,
                             "Coat IOR": 1.38, "Emission Color": em_iris.outputs[2], "Emission Strength": em_strength})

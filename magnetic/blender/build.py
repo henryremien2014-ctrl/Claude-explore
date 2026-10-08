@@ -54,8 +54,7 @@ def build_scene():
     sc = bpy.context.scene
     coll = sc.collection
     w = bpy.data.worlds.new("World")
-    w.use_nodes = True
-    w.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.0
+    world.world_background(w)
     sc.world = w
     H = hero.build_hero(coll)
     img = world.spectrogram_image()
@@ -216,6 +215,8 @@ def bake(sc, S, C, shots):
     for sock, prop in (("Tau", "drop_tau"), ("Recall", "recall"), ("On", "drop_on")):
         drive(dr, f'modifiers["Droplets"]["{socket_id(dng, sock)}"]', ctrl, prop)
     S["droplets"] = dr
+    for cname in ("SoftboxLight", "KeyLight"):
+        bpy.data.collections[cname].objects.link(dr)
 
     # One camera per shot, keyed over its shot (plus a frame either side), switched by markers.
     from choreo import quat_look
@@ -245,6 +246,23 @@ def bake(sc, S, C, shots):
     return ctrl, cams
 
 
+def check_clearance(S, C, margin=0.3):
+    """Ray-cast the static canyon under every camera position on every frame (the canyon slides
+    by -scroll * L): no camera may sit inside the terrain."""
+    from mathutils.bvhtree import BVHTree
+    cy = S["canyon"]
+    me = cy.data
+    tree = BVHTree.FromPolygons([v.co[:] for v in me.vertices], [p.vertices[:] for p in me.polygons])
+    bad = []
+    for f, (loc, sc_) in enumerate(zip(C["cam_loc"], C["scroll"])):
+        x_local = loc[0] + sc_ * world.CANYON_L
+        hit = tree.ray_cast(Vector((x_local, loc[1], 60.0)), Vector((0.0, 0.0, -1.0)))
+        if hit[0] is not None and loc[2] < hit[0].z + margin:
+            bad.append((f, round(float(loc[2]), 2), round(float(hit[0].z), 2)))
+    print(f"camera clearance: {len(bad)} frames too close to the terrain" + (f": {bad[:12]}" if bad else ""))
+    return bad
+
+
 def build_full(width=1920, spp=64):
     import json
     from common import ANALYSIS
@@ -253,6 +271,7 @@ def build_full(width=1920, spp=64):
     C = dict(np.load(ANALYSIS / "choreo.npz"))
     shots = json.loads((ANALYSIS / "shots.json").read_text())
     ctrl, cams = bake(sc, S, C, shots)
+    check_clearance(S, C)
     return sc, S, C, shots
 
 
