@@ -313,3 +313,78 @@ def build_hero(collection):
         o.cycles.use_motion_blur = True
     return {"root": root, "face": face, "fluid": fluid, "pivot": pivot, "eye": eye,
             "sites": sites, "site_idx": site_idx}
+
+
+# ----------------------------------------------------------------------------- bullet-time droplets
+
+def droplet_nodes(mat):
+    from common import gn_group
+    ng, t, gi, go = gn_group("DropletsGN", [("Geometry", "NodeSocketGeometry"), ("Tau", "NodeSocketFloat", 0.0),
+                                            ("Recall", "NodeSocketFloat", 0.0), ("On", "NodeSocketFloat", 0.0)])
+    I = gi.outputs
+
+    def named(name, kind="FLOAT_VECTOR"):
+        a = t.node("GeometryNodeInputNamedAttribute", data_type=kind)
+        a.inputs["Name"].default_value = name
+        return a.outputs["Attribute"]
+
+    p0, v = named("p0"), named("v")
+    g = (0.0, 0.0, -9.81 * 0.45)
+    tau = I["Tau"]
+    flight = t.vadd(t.vadd(p0, t.vscale(v, tau)), t.vscale(g, t.mul(t.mul(tau, tau), 0.5)))
+    home = t.vadd((0.0, 0.0, 1.75), t.vscale(t.normalize(t.vsub(flight, (0.0, 0.0, 1.75))), 1.04))
+    pos = t.mixv(flight, home, I["Recall"])
+    vel = t.vadd(v, t.vscale(g, tau))                                   # physical velocity: the teardrop axis
+    sp = t.node("GeometryNodeSetPosition")
+    t.link(I["Geometry"], sp.inputs["Geometry"])
+    t.link(pos, sp.inputs["Position"])
+    ico = t.node("GeometryNodeMeshUVSphere")
+    t.feed(ico, {"Segments": 24, "Rings": 12, "Radius": 1.0})
+    sm = t.node("GeometryNodeSetShadeSmooth")
+    t.link(ico.outputs["Mesh"], sm.inputs["Geometry"])
+    align = t.node("FunctionNodeAlignRotationToVector", axis="Z")
+    t.link(vel, align.inputs["Vector"])
+    inst = t.node("GeometryNodeInstanceOnPoints")
+    t.link(sp.outputs[0], inst.inputs["Points"])
+    t.link(sm.outputs[0], inst.inputs["Instance"])
+    t.link(align.outputs[0], inst.inputs["Rotation"])
+    r = t.mul(named("r", "FLOAT"), I["On"])
+    stretch = t.add(1.0, t.mul(t.length(vel), t.mul(t.sub(1.0, I["Recall"]), 0.55)))
+    t.link(t.vec(r, r, t.mul(r, stretch)), inst.inputs["Scale"])
+    smat = t.node("GeometryNodeSetMaterial")
+    t.link(inst.outputs[0], smat.inputs["Geometry"])
+    smat.inputs["Material"].default_value = mat
+    t.link(smat.outputs[0], go.inputs[0])
+    return ng
+
+
+def build_droplets(coll, H, face_q, spin, frame, n=150, seed=5):
+    """Droplets thrown from spike tips facing the camera at the explosion frame."""
+    from choreo import quat_rot
+    rng = np.random.default_rng(seed)
+    sites = H["sites"]
+    q = face_q[frame]
+    a = spin[frame]
+    ry = np.array([[math.cos(a), 0, math.sin(a)], [0, 1, 0], [-math.sin(a), 0, math.cos(a)]])
+    world_dirs = np.array([quat_rot(q, ry @ s) for s in sites])
+    view = np.array([quat_rot(q, np.array([0.0, 1.0, 0.0]))])[0]
+    score = world_dirs @ view + 0.35 * rng.random(len(sites))
+    pick = np.argsort(-score)[:n]
+    d = world_dirs[pick]
+    p0 = np.array([0.0, 0.0, 1.75]) + d * 1.28
+    speed = rng.uniform(1.6, 4.4, n)
+    v = d * speed[:, None] + rng.normal(0, 0.35, (n, 3)) + np.array([0, 0, 0.6])
+    r = 0.012 + 0.05 * rng.random(n) ** 2.5
+    me = bpy.data.meshes.new("DROPLETS")
+    me.from_pydata(p0.tolist(), [], [])
+    for name, vals in (("p0", p0), ("v", v)):
+        at = me.attributes.new(name, "FLOAT_VECTOR", "POINT")
+        at.data.foreach_set("vector", vals.astype(np.float32).ravel())
+    at = me.attributes.new("r", "FLOAT", "POINT")
+    at.data.foreach_set("value", r.astype(np.float32))
+    ob = bpy.data.objects.new("DROPLETS", me)
+    coll.objects.link(ob)
+    mod = ob.modifiers.new("Droplets", "NODES")
+    mod.node_group = droplet_nodes(bpy.data.materials["Ferrofluid"])
+    ob.cycles.use_motion_blur = True
+    return ob

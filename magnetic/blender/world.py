@@ -9,6 +9,7 @@ from common import (ANALYSIS, CORAL, GOLD, MAGENTA, MAGMA, ORANGE, PALE, VIOLET,
                     new_material, output, principled, set_visibility)
 
 CANYON_L = 60.0      # metres of canyon = one full loop of spectrogram
+STRIP_X0, STRIP_X1 = -30.0, 30.0 + CANYON_L   # static strip; the object slides by -scroll * L
 CANYON_W = 14.0      # half width: bass on the centre line, 14 kHz on the rims
 RIVER_Z = -0.4
 
@@ -56,9 +57,10 @@ def canyon_nodes(img, img_geo, mat):
                                           ("Relief", "NodeSocketFloat", 1.0)])
     I = gi.outputs
     grid = t.node("GeometryNodeMeshGrid")
-    t.feed(grid, {"Size X": CANYON_L, "Size Y": 2 * CANYON_W, "Vertices X": 960, "Vertices Y": 448})
+    t.feed(grid, {"Size X": STRIP_X1 - STRIP_X0, "Size Y": 2 * CANYON_W, "Vertices X": 1920, "Vertices Y": 448})
     pos = t.node("GeometryNodeInputPosition").outputs[0]
-    x, y, _ = t.xyz(pos)
+    x0, y, _ = t.xyz(pos)
+    x = t.add(x0, 0.5 * (STRIP_X0 + STRIP_X1))
     ay = t.math("ABSOLUTE", y)
     u = t.math("FRACT", t.add(t.div(x, CANYON_L), I["Scroll"]))
     v = t.clamp01(t.div(ay, CANYON_W))
@@ -140,13 +142,22 @@ def obsidian_material():
 
 
 def build_canyon(coll, img):
-    me = bpy.data.meshes.new("CANYON")
+    """The canyon is displaced once into a static strip two loops long; scrolling it is a rigid
+    slide of the object, so Cycles keeps its BVH (and light tree) across frames."""
+    mat = obsidian_material()
+    tmp = bpy.data.objects.new("CANYON_GEN", bpy.data.meshes.new("CANYON_GEN"))
+    coll.objects.link(tmp)
+    mod = tmp.modifiers.new("Canyon", "NODES")
+    mod.node_group = canyon_nodes(img, spectrogram_image("spectrogram_geo", blur=(1.6, 5.0)), mat)
+    bpy.context.view_layer.update()
+    dg = bpy.context.evaluated_depsgraph_get()
+    me = bpy.data.meshes.new_from_object(tmp.evaluated_get(dg), preserve_all_data_layers=True, depsgraph=dg)
+    me.name = "CANYON"
+    bpy.data.objects.remove(tmp)
+    if not me.materials:
+        me.materials.append(mat)
     ob = bpy.data.objects.new("CANYON", me)
     coll.objects.link(ob)
-    mat = obsidian_material()
-    mod = ob.modifiers.new("Canyon", "NODES")
-    mod.node_group = canyon_nodes(img, spectrogram_image("spectrogram_geo", blur=(1.6, 5.0)), mat)
-    me.materials.append(mat)
     ob.cycles.use_motion_blur = False
     return ob
 
@@ -438,14 +449,20 @@ def build_lights(coll, root):
     return out
 
 
-def link_lights(lights, receivers, coll_name="HeroLight"):
-    """Softboxes and the key light sculpt the hero (and light the haze); the canyon only
-    gets its own lava and the magenta rim."""
-    rc = bpy.data.collections.get(coll_name) or bpy.data.collections.new(coll_name)
-    for ob in receivers:
-        if ob.name not in rc.objects:
-            rc.objects.link(ob)
+def link_lights(lights, receivers, haze=None):
+    """Softboxes sculpt the hero's reflections only; the key light also lights the haze (god
+    rays). The canyon gets nothing but its own lava and the magenta rim."""
+    def coll(name, objs):
+        c = bpy.data.collections.get(name) or bpy.data.collections.new(name)
+        for ob in objs:
+            if ob.name not in c.objects:
+                c.objects.link(ob)
+        return c
+    sb = coll("SoftboxLight", receivers)
+    key = coll("KeyLight", receivers + ([haze] if haze else []))
     for name, ob in lights.items():
-        if name.startswith("SB_") or name == "KEY":
-            ob.light_linking.receiver_collection = rc
-    return rc
+        if name.startswith("SB_"):
+            ob.light_linking.receiver_collection = sb
+        elif name == "KEY":
+            ob.light_linking.receiver_collection = key
+    return sb, key
