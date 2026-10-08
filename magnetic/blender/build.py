@@ -68,8 +68,9 @@ def build_scene():
     S["lights"] = world.build_lights(coll, H["root"])
     world.link_lights(S["lights"], [H["fluid"], H["eye"]] + S["rings"], haze=S["haze"])
     # Lava, dust, tape print and the reflection-only panels are found by BSDF rays, not light sampling.
-    for name in ("Canyon", "Dust", "Tape", "Sequencer"):
-        bpy.data.materials[name].cycles.emission_sampling = "NONE"
+    for m in bpy.data.materials:
+        if m.name in ("Canyon", "Dust", "Tape", "Sequencer") or m.name.startswith("SB_"):
+            m.cycles.emission_sampling = "NONE"
     return sc, S
 
 

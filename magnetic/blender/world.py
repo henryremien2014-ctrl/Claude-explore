@@ -134,7 +134,7 @@ def obsidian_material():
                        t.mul(t.pow(S, 2.2), wall))
     rough = t.add(0.14, t.mul(t.noise(cc, scale=0.7, detail=4.0), 0.3))
     bump = t.node("ShaderNodeBump")
-    t.feed(bump, {"Strength": 0.3, "Distance": 0.05, "Height": t.noise(cc, scale=3.0, detail=6.0)})
+    t.feed(bump, {"Strength": 0.3, "Distance": 0.05, "Height": t.noise(cc, scale=3.0, detail=2.0)})
     bsdf = principled(t, **{"Base Color": ridge_col, "Roughness": rough, "IOR": 1.49,
                             "Emission Color": em_col, "Emission Strength": em, "Normal": bump.outputs[0]})
     output(t, surface=bsdf)

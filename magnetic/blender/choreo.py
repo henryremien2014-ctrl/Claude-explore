@@ -424,7 +424,10 @@ def main():
     kick_seam, snare_seam, sub_seam = seam(ch["kick"]), seam(ch["snare"]), seam(sub)
     punch_age = punch_age * (1 - w) + punch_age[0] * w
 
-    out = dict(phase=phase, speed=speed, tape=tape, spike_h=h, punch=punch, punch_age=punch_age,
+    d_open = np.abs(np.diff(eye_open, prepend=eye_open[0]))
+    d_melt = np.abs(np.diff(melt, prepend=melt[0]))
+    mblur = (speed > 0.05) & ((punch > 0.12) | (d_open > 0.01) | (d_melt > 0.005) | ((recall > 0) & (recall < 1)))
+    out = dict(phase=phase, speed=speed, tape=tape, spike_h=h, punch=punch, punch_age=punch_age, mblur=mblur,
                eye_open=eye_open, melt=melt, tremor=tremor, pupil=pupil, iris_glow=iris_glow, spin=2 * np.pi * phase,
                gravity=gravity, face_q=face_q, eye_q=eye_q, drop_tau=drop_tau, drop_on=drop_on, recall=recall,
                halo_glow=halo_glow, mandala=mandala, mandala_glow=mandala_glow, seq=seq, dust_glow=dust_glow,

@@ -66,11 +66,14 @@ def main():
         sc.render.image_settings.file_format = "PNG"
         sc.render.image_settings.color_depth = "8"
         ext = "png"
+    import numpy as np
+    mblur = np.load(ROOT / "analysis" / "out" / "choreo.npz")["mblur"]
     log = open(a.log, "a") if a.log else None
     todo = [f for f in parse_frames(a.frames) if not (out / f"f{f:04d}.{ext}").exists()]
     print(f"{len(todo)} frames to render at {sc.render.resolution_x}x{sc.render.resolution_y}, {a.spp} spp")
     for f in todo:
         t0 = time.time()
+        sc.render.use_motion_blur = bool(mblur[f])      # motion blur only where the hero visibly moves
         sc.frame_set(f)
         tmp = out / f".f{f:04d}.{ext}"
         sc.render.filepath = str(tmp)

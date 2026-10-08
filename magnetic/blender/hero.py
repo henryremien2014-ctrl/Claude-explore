@@ -201,11 +201,8 @@ def ferrofluid_material():
     drift = t.noise(tc, scale=2.2, detail=3.0)
     film = t.add(t.add(t.mul(drift, 75.0), 250.0), t.mul(tip, -25.0))   # 250-325 nm: gold..violet, never teal
     rough = t.add(t.mul(t.noise(tc, scale=7.0, detail=2.0), 0.035), 0.022)
-    bump = t.node("ShaderNodeBump", invert=False)
-    t.feed(bump, {"Strength": 0.06, "Distance": 0.004, "Height": t.noise(tc, scale=55.0, detail=3.0)})
     bsdf = principled(t, **{"Base Color": (0.0035, 0.0032, 0.0042, 1), "Metallic": 0.0, "Roughness": rough,
-                            "IOR": 1.6, "Specular IOR Level": 0.62, "Thin Film Thickness": film, "Thin Film IOR": 1.36,
-                            "Normal": bump.outputs[0]})
+                            "IOR": 1.6, "Specular IOR Level": 0.62, "Thin Film Thickness": film, "Thin Film IOR": 1.36})
     output(t, surface=bsdf)
     return m
 
