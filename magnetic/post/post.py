@@ -173,13 +173,13 @@ class Post:
         ev = []
         for f in range(2, end):
             peak = o[f] > 0.25 and o[f] >= o[f - 1] and o[f] >= o[min(f + 1, end - 1)]
-            n = int(round((2 + 7 * o[f]) * (0.4 + 0.6 * sweep[f]))) if peak else int(rng.random() < 0.35)
+            n = int(round((3 + 10 * o[f]) * (0.4 + 0.6 * sweep[f]))) if peak else int(rng.random() < 0.5)
             for _ in range(n):
                 ang = rng.uniform(-np.pi, np.pi)
                 rad = rng.uniform(0.32, 1.05)                           # clear of the eye in the middle
                 ev.append(dict(f0=f, life=rng.uniform(7, 18), ang=ang, rad=rad, drift=rng.uniform(0.002, 0.008),
-                               sig=rng.uniform(2.5, 9.0), ring=rng.random() < 0.3, col=rng.uniform(0.55, 0.97),
-                               amp=rng.uniform(0.5, 1.0)))
+                               sig=rng.uniform(4.0, 14.0), ring=rng.random() < 0.3, col=rng.uniform(0.55, 0.97),
+                               amp=rng.uniform(0.9, 1.8)))
         return ev
 
     def phosphenes(self, img, f, amt):
@@ -202,9 +202,9 @@ class Post:
             if x0 >= x1 or y0 >= y1:
                 continue
             d = np.hypot(self.xx[y0:y1, x0:x1] - x, self.yy[y0:y1, x0:x1] - y)
-            g = np.exp(-0.5 * ((d - ring_r) / (sig * (0.35 if e["ring"] else 1.0))) ** 2)
+            g = np.exp(-0.5 * ((d - ring_r) / (sig * (0.5 if e["ring"] else 1.0))) ** 2)
             can[y0:y1, x0:x1] += a * g[..., None] * LUT[int(e["col"] * (len(LUT) - 1))]
-        dark = np.clip(1 - lum(img), 0, 1)[..., None] ** 1.5
+        dark = np.clip(1 - lum(img), 0, 1)[..., None] ** 0.8
         return np.clip(img + can * dark, 0, 1)
 
     def cev(self, img, f, u, pulse):
