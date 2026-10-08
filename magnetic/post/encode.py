@@ -17,7 +17,10 @@ AUDIO = ROOT / "analysis" / "out" / "window.wav"
 def main():
     frames, out = Path(sys.argv[1]), Path(sys.argv[2])
     preview = "--preview" in sys.argv
-    video = ["-c:v", "libx264", "-profile:v", "high", "-pix_fmt", "yuv420p", "-movflags", "+faststart"]
+    # swscale converts RGB with BT.601 coefficients unless told otherwise; the stream is tagged BT.709,
+    # so convert with BT.709 too or every player shifts the colours
+    video = ["-vf", "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p",
+             "-c:v", "libx264", "-profile:v", "high", "-movflags", "+faststart"]
     if preview:
         video += ["-preset", "medium", "-crf", "23"]
         audio = ["-c:a", "aac", "-b:a", "192k"]
