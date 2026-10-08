@@ -109,6 +109,7 @@ class Post:
         self.theta = np.arctan2(yy - self.cy, xx - self.cx)
         self.vign = (1.0 - 0.30 * np.clip(self.r / 1.15, 0, 1) ** 2.4)[..., None]
         self.font = ImageFont.truetype(FONT, max(10, int(round(22 * self.s))))
+        self.phos = self.phosphene_events()
         self.prev_clean = None          # previous output before grain/vignette, for temporal effects
         self.trail = None
         self.fb = None
@@ -140,11 +141,21 @@ class Post:
             out[..., c] = cv2.remap(lin[..., c], mx, my, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
         return out
 
+    def blur(self, img, sigma):
+        """Gaussian blur; wide ones run on a downsampled copy (same look, a fraction of the cost)."""
+        d = max(1, int(sigma / 6))
+        if d == 1:
+            return cv2.GaussianBlur(img, (0, 0), max(sigma, 0.6))
+        h, w = img.shape[:2]
+        small = cv2.resize(img, (w // d, h // d), interpolation=cv2.INTER_AREA)
+        small = cv2.GaussianBlur(small, (0, 0), sigma / d)
+        return cv2.resize(small, (w, h), interpolation=cv2.INTER_LINEAR)
+
     def bloom(self, lin, strength):
         hi = np.maximum(lin - 1.5, 0.0)                     # only what is brighter than paper white blooms
         acc = np.zeros_like(lin)
         for r, w in ((3, 1.0), (9, 0.8), (24, 0.6), (64, 0.4)):
-            acc += w * cv2.GaussianBlur(hi, (0, 0), max(r * self.s, 0.6))
+            acc += w * self.blur(hi, r * self.s)
         return lin + strength * acc / 2.8
 
     def halation(self, lin, strength):
@@ -153,18 +164,73 @@ class Post:
         return lin + strength * g * np.array([1.0, 0.22, 0.10], np.float32)
 
     # ------------------------------------------------------------------ trip
-    def cev(self, img, f, u):
-        """Closed-eye visuals: light through the lids (deep red), 4-fold mirrored lattice."""
-        h, w = img.shape[:2]
-        rot = cv2.getRotationMatrix2D((self.cx, self.cy), 8.0 * u, 1.0 + 0.04 * u)
-        img = cv2.warpAffine(img, rot, (w, h), borderMode=cv2.BORDER_REFLECT)
-        q = img[: h // 2 + 1, : w // 2 + 1]
-        top = np.concatenate([q, q[:, ::-1][:, 1:]], 1)[:, :w]
-        m = np.concatenate([top, top[::-1][1:]], 0)[:h]
-        L = lum(m)
-        e = np.clip(L * 1.8, 0, 1)
-        lid = magma(np.clip(0.30 + 0.66 * e ** 0.75, 0, 1))
-        return np.clip(lid * (0.18 + 1.0 * e[..., None] ** 0.9), 0, 1)       # dark lid, glowing lattice
+    def phosphene_events(self):
+        """Intro phosphenes: soft sparks and rings of light born on the intro's onsets (more as the
+        filter opens), drifting outward through the dark around the eye. Deterministic per loop."""
+        rng = np.random.default_rng(11)
+        o, sweep = self.C["onset_rel"], self.C["sweep"]
+        end = self.plan["cev"][0]
+        ev = []
+        for f in range(2, end):
+            peak = o[f] > 0.25 and o[f] >= o[f - 1] and o[f] >= o[min(f + 1, end - 1)]
+            n = int(round((2 + 7 * o[f]) * (0.4 + 0.6 * sweep[f]))) if peak else int(rng.random() < 0.35)
+            for _ in range(n):
+                ang = rng.uniform(-np.pi, np.pi)
+                rad = rng.uniform(0.32, 1.05)                           # clear of the eye in the middle
+                ev.append(dict(f0=f, life=rng.uniform(7, 18), ang=ang, rad=rad, drift=rng.uniform(0.002, 0.008),
+                               sig=rng.uniform(2.5, 9.0), ring=rng.random() < 0.3, col=rng.uniform(0.55, 0.97),
+                               amp=rng.uniform(0.5, 1.0)))
+        return ev
+
+    def phosphenes(self, img, f, amt):
+        can = np.zeros_like(img)
+        for e in self.phos:
+            age = f - e["f0"]
+            if age < 0 or age > 2.5 * e["life"]:
+                continue
+            a = amt * e["amp"] * (1 - np.exp(-(age + 1) / 1.2)) * np.exp(-age / (e["life"] / 2.2))
+            if a < 0.01:
+                continue
+            rr = e["rad"] + e["drift"] * age
+            x = self.cx + np.cos(e["ang"]) * rr * self.cx
+            y = self.cy + np.sin(e["ang"]) * rr * self.cx
+            sig = e["sig"] * self.s * 2.0
+            ring_r = (6 + 2.2 * age) * self.s * 2.0 if e["ring"] else 0.0
+            R = int(ring_r + 3.5 * sig) + 2
+            x0, x1 = max(int(x) - R, 0), min(int(x) + R + 1, self.W)
+            y0, y1 = max(int(y) - R, 0), min(int(y) + R + 1, self.H)
+            if x0 >= x1 or y0 >= y1:
+                continue
+            d = np.hypot(self.xx[y0:y1, x0:x1] - x, self.yy[y0:y1, x0:x1] - y)
+            g = np.exp(-0.5 * ((d - ring_r) / (sig * (0.35 if e["ring"] else 1.0))) ** 2)
+            can[y0:y1, x0:x1] += a * g[..., None] * LUT[int(e["col"] * (len(LUT) - 1))]
+        dark = np.clip(1 - lum(img), 0, 1)[..., None] ** 1.5
+        return np.clip(img + can * dark, 0, 1)
+
+    def cev(self, img, f, u, pulse):
+        """Closed-eye visuals: light through the lids (deep red) and a Kluver form constant. A hexagonal
+        lattice laid out in cortical (log-polar) coordinates, so in the visual field it is a honeycomb
+        tunnel streaming outward and twisting into a spiral; it strobes with the roll."""
+        rho = np.log(self.r + 1e-3)
+        th = self.theta + (0.9 + 1.6 * u) * rho                          # log-spiral shear, stays 2pi-periodic
+        flow = 2.2 * u + 0.35 * f / 30.0                                 # the tunnel streams outward
+        K = 10.392                                                       # 12 * sin(60 deg): hex lattice, integer in theta
+        v = (np.cos(12 * th) + np.cos(-K * (rho - flow) - 6 * th) + np.cos(K * (rho - flow) - 6 * th) + 1.5) / 4.5
+        cells = smoothstep(0.52, 0.95, v) * smoothstep(0.03, 0.22, self.r)       # fade where cells get too fine
+        L = np.clip(lum(img) * 1.6, 0, 1)
+        lid = magma(np.clip(0.18 + 0.30 * L, 0, 1)) * (0.25 + 0.75 * L[..., None])   # the closed eye, glowing red
+        glow = magma(np.clip(0.45 + 0.5 * cells + 0.1 * pulse, 0, 1)) * cells[..., None]
+        core = np.exp(-(self.r / 0.10) ** 2)[..., None] * magma(np.array([0.93]))[0]   # light at the tunnel's end
+        amt = smoothstep(0.0, 0.25, u) * (0.55 + 0.45 * pulse)
+        return np.clip(lid * (1 - 0.5 * amt) + amt * (1.1 * glow + 0.8 * core), 0, 1)
+
+    def retrigger(self, img, e):
+        """The roll's retrigger accent: a small zoom punch and a flash on every 3-frame slice."""
+        if e < 0.01:
+            return img
+        M = cv2.getRotationMatrix2D((self.cx, self.cy), 0.0, 1.0 + 0.035 * e)
+        img = cv2.warpAffine(img, M, (self.W, self.H), borderMode=cv2.BORDER_REFLECT)
+        return np.clip(img * (1 + 0.30 * e), 0, 1)
 
     def feedback(self, img, amt, f):
         if self.fb is None:
@@ -365,10 +431,20 @@ class Post:
         def inside(rng_):
             return rng_[0] <= f < rng_[1]
 
+        # the roll's retrigger stutter accent (the frame plan repeats each 3-frame slice)
+        accent = 0.0
+        for a, b in P["rolls"]:
+            if a <= f < b:
+                accent = (1.0, 0.45, 0.15)[(f - a) % 3] * (1.0 if (f - a) % 6 < 3 else 0.7)
+        # intro phosphenes, rising with the filter sweep
+        if f < P["cev"][0] and not P["black"][f]:
+            amt = smoothstep(1, 14, f) * (0.35 + 0.65 * float(C["sweep"][f]))
+            if amt > 0.005:
+                img = self.phosphenes(img, f, 0.9 * amt)
         # closed-eye visuals
         if inside(P["cev"]) and not P["black"][f]:
             u = (f - P["cev"][0]) / max(P["cev"][1] - P["cev"][0], 1)
-            img = self.cev(img, f, u)
+            img = self.cev(img, f, u, accent)
         # datamosh on chosen cuts
         for c in P["datamosh"]:
             if c <= f < c + 8 and self.prev_clean is not None and self.prev_src is not None and not P["black"][f]:
@@ -412,8 +488,9 @@ class Post:
         # gated chops: slice displacement
         if ch["chop"][f] > 0.5:
             img = self.slices(img, f, 1.0)
+        img = self.retrigger(img, accent)
         # chroma split on hits
-        img = self.chroma(img, (6 * snare + 3 * kick) * self.s)
+        img = self.chroma(img, (6 * snare + 3 * kick + 5 * accent) * self.s)
         # negative strobe on gated silences
         if P["negative"][f]:
             img = self.negative(img)

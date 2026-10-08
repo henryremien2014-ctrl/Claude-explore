@@ -66,6 +66,7 @@ def build_scene():
     S["dust"] = world.build_dust(coll)
     S["haze"] = world.build_haze(coll)
     S["lights"] = world.build_lights(coll, H["root"])
+    S["river"] = world.build_river_lights(coll)
     world.link_lights(S["lights"], [H["fluid"], H["eye"]] + S["rings"], haze=S["haze"])
     # Lava, dust, tape print and the reflection-only panels are found by BSDF rays, not light sampling.
     for m in bpy.data.materials:
@@ -159,7 +160,8 @@ def bake(sc, S, C, shots):
     ctrl = bpy.data.objects.new("CTRL", None)
     sc.collection.objects.link(ctrl)
     scalars = ["phase", "speed", "spike_h", "punch", "punch_age", "eye_open", "melt", "tremor", "pupil", "iris_glow",
-               "spin", "drop_tau", "drop_on", "recall", "halo_glow", "mandala_glow", "dust_glow", "haze", "scroll"]
+               "spin", "drop_tau", "drop_on", "recall", "halo_glow", "mandala_glow", "dust_glow", "haze", "scroll",
+               "river"]
     chans = {k: C[k] for k in scalars}
     for i, ax in enumerate("xyz"):
         chans[f"grav_{ax}"] = C["gravity"][:, i]
@@ -198,6 +200,8 @@ def bake(sc, S, C, shots):
     drive(du, f'modifiers["Dust"]["{socket_id(du.modifiers["Dust"].node_group, "Phase")}"]', ctrl, "phase")
     drive(bpy.data.materials["Dust"].node_tree, 'nodes["dust_glow"].outputs[0].default_value', ctrl, "dust_glow")
     drive(bpy.data.materials["Haze"].node_tree, 'nodes["haze"].outputs[0].default_value', ctrl, "haze")
+    for ob in S["river"]:
+        drive(ob.data, "energy", ctrl, "river", scale=world.RIVER_POWER)
     drive(bpy.data.materials["Halo"].node_tree, 'nodes["halo_glow"].outputs[0].default_value', ctrl, "halo_glow")
     drive(bpy.data.materials["Mandala"].node_tree, 'nodes["mandala_glow"].outputs[0].default_value', ctrl, "mandala_glow")
     for k, seed in enumerate(S["halo"]["seeds"]):

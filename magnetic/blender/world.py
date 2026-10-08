@@ -99,7 +99,8 @@ def canyon_nodes(img, img_geo, mat):
 
 def obsidian_material():
     """Obsidian crust. Lava shows in the cracks only where the spectrum is loud; loud harmonics
-    tint the ridges violet; the bass river runs molten under crust plates."""
+    tint the ridges violet; the bass river is dark crust split by glowing seams that widen and
+    melt open where the bass is loud."""
     m, t = new_material("Canyon")
     S = t.node("ShaderNodeAttribute", attribute_name="spec").outputs["Fac"]
     G = t.node("ShaderNodeAttribute", attribute_name="rel").outputs["Fac"]
@@ -118,14 +119,15 @@ def obsidian_material():
     fine = t.node("ShaderNodeTexVoronoi", feature="DISTANCE_TO_EDGE")
     t.feed(fine, {"Vector": cw, "Scale": 6.0})
     crack = t.mx(crack, t.mul(t.sub(1.0, t.smoothstep(0.0, 0.03, fine.outputs["Distance"])), 0.35))
-    plates = t.sub(1.0, t.smoothstep(0.0, 0.12, vor.outputs["Distance"]))
     river = t.sub(1.0, t.smoothstep(0.10, 0.19, row))            # the bass rows: |y| < ~2 m
+    seam_w = t.add(0.022, t.mul(t.mul(G, G), 0.10))              # loud bass melts the crust: cracks widen
+    molten = t.sub(1.0, t.smoothstep(0.0, seam_w, vor.outputs["Distance"]))
     wall = t.smoothstep(0.12, 0.45, row)
     loud = t.smoothstep(0.45, 1.0, G)                        # loud for its own band, not just loud
     lava_col = t.ramp(t.add(0.52, t.mul(G, 0.40)), MAGMA)
-    river_col = t.ramp(t.add(0.66, t.mul(G, 0.30)), MAGMA)
+    river_col = t.mixc(t.ramp(t.add(0.48, t.mul(G, 0.16)), MAGMA), t.ramp(t.add(0.70, t.mul(G, 0.26)), MAGMA), molten)
     crack_em = t.mul(t.mul(crack, t.mul(loud, loud)), t.mul(t.sub(1.0, river), 1.1))
-    river_em = t.mul(river, t.mul(t.add(0.04, t.mul(t.pow(G, 1.6), 1.3)), t.add(0.25, t.mul(plates, 0.75))))
+    river_em = t.mul(river, t.mul(t.add(0.04, t.mul(t.pow(G, 1.6), 1.6)), t.add(0.10, t.mul(molten, 0.90))))
     ridge_em = t.mul(t.mul(t.pow(G, 3.0), wall), 0.10)
     em_col = t.mixc(lava_col, t.ramp(t.add(0.22, t.mul(S, 0.16)), MAGMA), t.div(ridge_em, t.add(t.add(crack_em, ridge_em), 1e-4)))
     em_col = t.mixc(em_col, river_col, river)
@@ -452,9 +454,30 @@ def build_lights(coll, root):
     return out
 
 
+RIVER_XS = (-9.0, 0.0, 9.0)
+RIVER_POWER = 9000.0
+
+
+def build_river_lights(coll):
+    """The lava river's light on the canyon walls, the haze and the hero's underside. The canyon's
+    own emission is not light-sampled (too costly), so three warm point lights stand in for it just
+    above the river; their power follows the bass. Invisible to the camera and to reflections."""
+    out = []
+    for i, x in enumerate(RIVER_XS):
+        lt = bpy.data.lights.new(f"RIVER_{i}", "POINT")
+        lt.shadow_soft_size, lt.energy, lt.color = 0.6, RIVER_POWER, (1.0, 0.30, 0.08)
+        ob = bpy.data.objects.new(f"RIVER_{i}", lt)
+        coll.objects.link(ob)
+        ob.location = (x, 0.0, 0.7)
+        ob.visible_camera = False
+        ob.visible_glossy = False
+        out.append(ob)
+    return out
+
+
 def link_lights(lights, receivers, haze=None):
-    """Softboxes sculpt the hero's reflections only; the key light also lights the haze (god
-    rays). The canyon gets nothing but its own lava and the magenta rim."""
+    """Softboxes and the key light sculpt the hero only. Cycles' light linking does not reach
+    volumes, so the haze is lit by the unlinked lights: the magenta rim and the river lights."""
     def coll(name, objs):
         c = bpy.data.collections.get(name) or bpy.data.collections.new(name)
         for ob in objs:
@@ -462,7 +485,7 @@ def link_lights(lights, receivers, haze=None):
                 c.objects.link(ob)
         return c
     sb = coll("SoftboxLight", receivers)
-    key = coll("KeyLight", receivers + ([haze] if haze else []))
+    key = coll("KeyLight", receivers)
     for name, ob in lights.items():
         if name.startswith("SB_"):
             ob.light_linking.receiver_collection = sb

@@ -223,9 +223,11 @@ def main():
                 T = HERO_C + np.array([0.0, 0.0, 0.35])
                 ln, fd, fs = 20.0, 2.6, 4.0
             elif n == "bullet":
-                L = orbit(60 + 140 * smoothstep(0, 1, uu) * 0.85 + 140 * uu * 0.15, 4.3, 0.2 + 0.6 * uu)
+                az = 60 + 140 * smoothstep(0, 1, uu) * 0.85 + 140 * uu * 0.15
+                crane = 0.9 * max(0.0, math.sin(math.radians(az))) ** 4               # up and over the +y wall
+                L = orbit(az, 6.8, 0.6 + 0.4 * uu + crane)                            # well outside the rings
                 T = HERO_C
-                ln, fd, fs = 40.0, 3.6, 3.2
+                ln, fd, fs = 62.0, 5.9, 4.5
             elif n == "vertigo":
                 d = 15.0 - 11.8 * uu ** 2.2
                 L = HERO_C + np.array([-d, 0.35, 0.10 + 0.012 * d])
@@ -321,11 +323,15 @@ def main():
             punch_age[i] = age
     tremor = 0.25 + 0.75 * ch["high"]
 
-    pupil = 0.30 + 0.20 * ch["kick"]
+    # the intro's filter sweep: as the lowpass opens, the pupil constricts and the iris heats up
+    cen = np.convolve(np.pad(ch["centroid"], 6, mode="edge"), np.ones(13) / 13, mode="valid")
+    sweep = np.zeros(F)
+    sweep[:kickin_f] = smoothstep(cen[0], cen[:kickin_f].max(), cen[:kickin_f])
+    pupil = 0.30 + 0.20 * ch["kick"] - 0.10 * sweep
     for d_f in (drop1, drop2):
         k = np.arange(F - d_f)
         pupil[d_f:] += 0.22 * np.exp(-k / 9.0)                           # opening wide, then constricting
-    iris_glow = 0.8 + 0.7 * ch["kick"] + 0.3 * ch["mid"]
+    iris_glow = 0.8 + 0.7 * ch["kick"] + 0.3 * ch["mid"] + 0.9 * sweep
 
     # saccades: a new small offset on every beat, periodic over the loop
     rng = np.random.default_rng(3)
@@ -399,9 +405,15 @@ def main():
             seq[i, (seq_step[i] - back) % 16] = lvl * (0.25 + 0.75 * ch["rms"][i])
     seq[silent] = 0.0
     dust_glow = np.full(F, 0.45)
-    dust_glow[:kickin_f] = 1.3 + 0.6 * ch["high"][:kickin_f]
+    flick = np.zeros(F)                                                  # phosphene dust flickers on the intro's onsets
+    o_rel = np.clip((ch["onset"] - np.median(ch["onset"][:kickin_f])) / 0.08, 0, 1)   # above the intro's floor
+    for i in range(1, F):
+        flick[i] = max(flick[i - 1] * 0.72, o_rel[i])
+    dust_glow[:kickin_f] = 1.3 + 0.6 * ch["high"][:kickin_f] + 2.4 * flick[:kickin_f] * sweep[:kickin_f]
     dust_glow[stop_f0:riser_f0] = 0.9
     dust_glow += 0.4 * ch["kick"]
+    # the river lights: the bass (and every kick) lights the canyon walls from below; dark in the silences
+    river = (0.35 + 0.65 * (0.6 * sub + 0.4 * ch["rms"]) + 0.35 * ch["kick"]) * np.where(silent, 0.15, 1.0)
     haze = np.ones(F)
     haze[:kickin_f] = 1.25
     haze[stop_f0:riser_f0] = 1.35
@@ -417,7 +429,7 @@ def main():
         return x * (1 - ww) + tgt * ww
 
     h, punch, pupil, iris_glow, tremor = (seam(v) for v in (h, punch, pupil, iris_glow, tremor))
-    halo_glow, dust_glow, haze, mandala_glow = (seam(v) for v in (halo_glow, dust_glow, haze, mandala_glow))
+    halo_glow, dust_glow, haze, mandala_glow, river = (seam(v) for v in (halo_glow, dust_glow, haze, mandala_glow, river))
     mandala = seam(mandala)
     seq = seam(seq)
     eye_open = seam(eye_open)
@@ -433,7 +445,7 @@ def main():
                halo_glow=halo_glow, mandala=mandala, mandala_glow=mandala_glow, seq=seq, dust_glow=dust_glow,
                haze=haze, cam_loc=cam_loc, cam_tgt=cam_tgt, lens=lens, focus=focus, fstop=fstop, shot=shot_of,
                scroll=phase, kick=ch["kick"], snare=ch["snare"], sub=sub, kick_seam=kick_seam,
-               snare_seam=snare_seam, sub_seam=sub_seam)
+               snare_seam=snare_seam, sub_seam=sub_seam, sweep=sweep, onset_rel=o_rel, river=river)
     np.savez(AOUT / "choreo.npz", **out)
     (AOUT / "shots.json").write_text(json.dumps({"cuts": cuts, "shots": shots, "tape_total": float(tape_total),
                                                  "stop_frame": int(stop_f0), "drops": drops}, indent=1))
@@ -442,10 +454,10 @@ def main():
     src = f.copy()
     black = np.zeros(F, bool)
     negative = np.zeros(F, bool)
-    for r in rolls:                                                      # 3-frame retrigger stutters
-        a, b = r["frame0"], min(r["frame1"], F)
-        for i in range(a, b):
-            src[i] = a + ((i - a) % 3)
+    for r in rolls:                                                      # 3-frame retrigger stutters: each slice
+        a, b = r["frame0"], min(r["frame1"], F)                          # plays twice, then the next one, so the
+        for i in range(a, b):                                            # picture stutters forward at half speed
+            src[i] = a + 3 * ((i - a) // 6) + ((i - a) % 3)
     acc, last = 0.0, pd_f0                                               # frame rate falls with the tape
     for i in range(pd_f0, pd_f1):
         acc += max(speed[i], 0.0)

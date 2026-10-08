@@ -357,7 +357,7 @@ def droplet_nodes(mat):
     return ng
 
 
-def build_droplets(coll, H, face_q, spin, frame, n=150, seed=5):
+def build_droplets(coll, H, face_q, spin, frame, n=180, seed=5):
     """Droplets thrown from spike tips facing the camera at the explosion frame."""
     from choreo import quat_rot
     rng = np.random.default_rng(seed)
@@ -373,7 +373,7 @@ def build_droplets(coll, H, face_q, spin, frame, n=150, seed=5):
     p0 = np.array([0.0, 0.0, 1.75]) + d * 1.28
     speed = rng.uniform(1.6, 4.4, n)
     v = d * speed[:, None] + rng.normal(0, 0.35, (n, 3)) + np.array([0, 0, 0.6])
-    r = 0.012 + 0.05 * rng.random(n) ** 2.5
+    r = 0.02 + 0.075 * rng.random(n) ** 2.2                           # 2-9 cm: big enough to hang in bullet time
     me = bpy.data.meshes.new("DROPLETS")
     me.from_pydata(p0.tolist(), [], [])
     for name, vals in (("p0", p0), ("v", v)):
