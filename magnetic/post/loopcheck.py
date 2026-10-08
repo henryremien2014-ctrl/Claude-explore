@@ -40,8 +40,10 @@ def main():
     res = {"frames": n, "seam_last_to_first": seam, "median_step": float(np.median(normal)),
            "p10_step": float(np.percentile(normal, 10)), "mean_step": float(np.mean(normal)),
            "steps_last_12": [round(x, 5) for x in steps[-12:]], "steps_first_12": [round(x, 5) for x in steps[:12]]}
-    res["seam_smaller_than_median_step"] = seam < res["median_step"]
-    res["seam_smaller_than_neighbour_steps"] = seam < min(np.mean(steps[-6:]), np.mean(steps[:6]))
+    res["seam_smaller_than_median_step"] = bool(seam < res["median_step"])
+    # the seam must not stand out from the motion on either side of it
+    res["step_into_seam"], res["step_out_of_seam"] = float(steps[-1]), float(steps[0])
+    res["seam_smaller_than_neighbour_steps"] = bool(seam < min(steps[-1], steps[0]))
     print(json.dumps(res, indent=1))
     (d / "loopcheck.json").write_text(json.dumps(res, indent=1))
     if len(sys.argv) > 2:

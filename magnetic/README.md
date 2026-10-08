@@ -18,6 +18,7 @@ Cycles renders the world, and a glitch post pipeline keyed to the same measureme
 | 5. Render | `blender/render.py` | resumable, headless frame renders |
 | 6. Glitch post | `post/post.py` | finished frames |
 | 7. Deliver | `post/encode.py` | H.264 + AAC |
+|  | `post/loopcheck.py` | proof that the loop seam is smaller than a normal frame step |
 
 Rebuild everything:
 
@@ -29,7 +30,8 @@ $py analysis/validate.py analysis/out audio/out/truth.json analysis/out/validati
 $py analysis/plots.py audio/out/song.wav analysis/out
 $py blender/choreo.py
 $py blender/build.py --save /home/user/mag-work/magnetic.blend
-$py blender/render.py /home/user/mag-work/magnetic.blend /home/user/mag-work/renders/final @frameplan --width 1920 --spp 32 --exr
+$py blender/render.py /home/user/mag-work/magnetic.blend /home/user/mag-work/renders/final @frameplan --width 1920 --spp 16 --exr
 $py post/post.py /home/user/mag-work/renders/final /home/user/mag-work/post/final
 $py post/encode.py /home/user/mag-work/post/final out/magnetic.mp4
+$py post/loopcheck.py /home/user/mag-work/post/final out/loopcheck.png
 ```

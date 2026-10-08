@@ -457,21 +457,22 @@ class Post:
             if fall <= f < fall + 14:
                 img = self.pixel_sort(img, smoothstep(0, 1, (f - fall + 1) / 10.0) * (1 - smoothstep(10, 14, f - fall)))
         # the riser: feedback tunnel
-        if inside(P["riser"]):
+        dark = P["black"][f]                                            # the silences stay truly black
+        if inside(P["riser"]) and not dark:
             u = (f - P["riser"][0]) / (P["riser"][1] - P["riser"][0])
             img = self.feedback(img, u ** 1.4, f)
         else:
             self.fb = None
         # tracers in the groove and drop 2
         groove = (P["cuts"][2] <= f < P["stop"][0]) or (P["drops"][1] <= f < P["tape_start"][0] - 12)
-        if groove:
+        if groove and not dark:
             img = self.tracers(img, 0.6 + 0.4 * kick)
         else:
             self.trail = None
         # tape-start: rotating 6-fold kaleidoscope with a spectral colour shift (fades out into the dive)
         ks = P["tape_start"][0]
         kamt = smoothstep(ks - 1, ks + 2, f) * (1 - smoothstep(P["dive"][0] + 2, P["dive"][0] + 12, f))
-        if kamt > 0.001:
+        if kamt > 0.001 and not dark:
             rot = 2 * np.pi * (f - ks) / 72.0
             k_img = self.kaleido(img, rot)
             L = lum(k_img)
