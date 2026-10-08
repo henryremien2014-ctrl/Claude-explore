@@ -390,7 +390,9 @@ def main():
     mandala_glow[pd] *= np.clip(speed[pd], 0, 1)
     mandala_glow[(f >= pd_f1) & (f < drop2)] = 0.0
     mandala[(f >= pd_f1) & (f < drop2)] = 0.0
-    seq_step = np.floor(tape / (A["beat_s"] / 4)).astype(int) % 16
+    # 16ths on the tape clock, rounded to a whole number of 16-step cycles per loop: periodic.
+    steps_per_loop = 16 * max(1, int(round(tape_total / (A["beat_s"] / 4) / 16)))
+    seq_step = np.floor(phase * steps_per_loop).astype(int) % 16
     seq = np.zeros((F, 16))
     for i in range(F):
         for back, lvl in enumerate((1.0, 0.45, 0.2, 0.08)):
@@ -417,7 +419,9 @@ def main():
     h, punch, pupil, iris_glow, tremor = (seam(v) for v in (h, punch, pupil, iris_glow, tremor))
     halo_glow, dust_glow, haze, mandala_glow = (seam(v) for v in (halo_glow, dust_glow, haze, mandala_glow))
     mandala = seam(mandala)
+    seq = seam(seq)
     eye_open = seam(eye_open)
+    kick_seam, snare_seam, sub_seam = seam(ch["kick"]), seam(ch["snare"]), seam(sub)
     punch_age = punch_age * (1 - w) + punch_age[0] * w
 
     out = dict(phase=phase, speed=speed, tape=tape, spike_h=h, punch=punch, punch_age=punch_age,
@@ -425,7 +429,8 @@ def main():
                gravity=gravity, face_q=face_q, eye_q=eye_q, drop_tau=drop_tau, drop_on=drop_on, recall=recall,
                halo_glow=halo_glow, mandala=mandala, mandala_glow=mandala_glow, seq=seq, dust_glow=dust_glow,
                haze=haze, cam_loc=cam_loc, cam_tgt=cam_tgt, lens=lens, focus=focus, fstop=fstop, shot=shot_of,
-               scroll=phase, kick=ch["kick"], snare=ch["snare"], sub=sub)
+               scroll=phase, kick=ch["kick"], snare=ch["snare"], sub=sub, kick_seam=kick_seam,
+               snare_seam=snare_seam, sub_seam=sub_seam)
     np.savez(AOUT / "choreo.npz", **out)
     (AOUT / "shots.json").write_text(json.dumps({"cuts": cuts, "shots": shots, "tape_total": float(tape_total),
                                                  "stop_frame": int(stop_f0), "drops": drops}, indent=1))

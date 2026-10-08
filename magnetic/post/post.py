@@ -139,8 +139,9 @@ class Post:
         top = np.concatenate([q, q[:, ::-1][:, 1:]], 1)[:, :w]
         m = np.concatenate([top, top[::-1][1:]], 0)[:h]
         L = lum(m)
-        lid = magma(np.clip(0.40 + 0.58 * np.clip(L * 1.6, 0, 1) ** 0.7, 0, 1))
-        return np.clip(lid * (0.55 + 0.6 * np.clip(L * 2.0, 0, 1)[..., None]), 0, 1)
+        e = np.clip(L * 1.8, 0, 1)
+        lid = magma(np.clip(0.30 + 0.66 * e ** 0.75, 0, 1))
+        return np.clip(lid * (0.18 + 1.0 * e[..., None] ** 0.9), 0, 1)       # dark lid, glowing lattice
 
     def feedback(self, img, amt, f):
         if self.fb is None:
@@ -315,7 +316,7 @@ class Post:
         F = self.F
         s = P["src"][f]
         speed = float(C["speed"][f])
-        kick, snare = float(ch["kick"][f]), float(ch["snare"][f])
+        kick, snare = float(C["kick_seam"][f]), float(C["snare_seam"][f])   # blended into frame 0 at the seam
         if P["black"][f]:
             img = np.zeros((self.H, self.W, 3), np.float32)
             src_img = img
@@ -390,7 +391,7 @@ class Post:
         if P["negative"][f]:
             img = self.negative(img)
         # breathing warp on the bass
-        img = self.breathe(img, 0.010 * float(ch["sub"][f]) + 0.016 * kick)
+        img = self.breathe(img, 0.010 * float(C["sub_seam"][f]) + 0.016 * kick)
         self.prev_clean = img.copy()
         self.prev_src = src_img
         # grade and finish
