@@ -276,6 +276,8 @@ def build_full(width=1920, spp=64):
     C = dict(np.load(ANALYSIS / "choreo.npz"))
     shots = json.loads((ANALYSIS / "shots.json").read_text())
     ctrl, cams = bake(sc, S, C, shots)
+    for ob in bpy.data.objects:                         # motion blur on the hero only
+        ob.cycles.use_motion_blur = ob.name in ("FLUID", "EYEBALL", "DROPLETS")
     check_clearance(S, C)
     return sc, S, C, shots
 

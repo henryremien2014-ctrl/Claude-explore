@@ -216,10 +216,13 @@ class Post:
         flow = 2.2 * u + 0.35 * f / 30.0                                 # the tunnel streams outward
         K = 10.392                                                       # 12 * sin(60 deg): hex lattice, integer in theta
         v = (np.cos(12 * th) + np.cos(-K * (rho - flow) - 6 * th) + np.cos(K * (rho - flow) - 6 * th) + 1.5) / 4.5
-        cells = smoothstep(0.52, 0.95, v) * smoothstep(0.03, 0.22, self.r)       # fade where cells get too fine
+        fade = smoothstep(0.03, 0.22, self.r)[..., None]                 # fade where the cells get too fine
+        cores = smoothstep(0.80, 0.97, v)[..., None]                     # gold cores on the lattice points
+        web = np.exp(-((v - 0.42) / 0.035) ** 2)[..., None]              # a magenta contour web between them
         L = np.clip(lum(img) * 1.6, 0, 1)
         lid = magma(np.clip(0.18 + 0.30 * L, 0, 1)) * (0.25 + 0.75 * L[..., None])   # the closed eye, glowing red
-        glow = magma(np.clip(0.45 + 0.5 * cells + 0.1 * pulse, 0, 1)) * cells[..., None]
+        glow = fade * (0.95 * cores * magma(np.array([0.92]))[0]
+                       + 0.8 * web * magma(np.array([0.56 + 0.18 * pulse]))[0])
         core = np.exp(-(self.r / 0.10) ** 2)[..., None] * magma(np.array([0.93]))[0]   # light at the tunnel's end
         amt = smoothstep(0.0, 0.25, u) * (0.55 + 0.45 * pulse)
         return np.clip(lid * (1 - 0.5 * amt) + amt * (1.1 * glow + 0.8 * core), 0, 1)
