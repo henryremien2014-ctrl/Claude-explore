@@ -11,15 +11,17 @@ Per output frame:
   4. trip    - closed-eye visuals, feedback tunnel, pixel-sort melts, datamosh, 6-fold kaleidoscope,
                tracers, VHS tracking + red pitch-down drain + sagging picture, slice displacement,
                chroma split, negative strobe, breathing warp
-  5. grade   - the magma grade (every pixel pulled onto the magma ramp by its own brightness),
-               hue lock, grain, vignette, the tape-speed readout
+  5. grade   - the magma grade (each pixel's hue pulled toward the magma ramp at its own OKLab
+               lightness, off-palette hues folded in), grain, vignette, the tape-speed readout
 """
 import argparse
 import json
 import math
+import os
 from pathlib import Path
 
-import cv2
+os.environ.setdefault("OPENCV_IO_ENABLE_OPENEXR", "1")    # must be set before cv2 loads
+import cv2  # noqa: E402
 import numpy as np
 import PyOpenColorIO as OCIO
 from PIL import Image, ImageDraw, ImageFont
@@ -56,6 +58,25 @@ def smoothstep(e0, e1, x):
     return u * u * (3 - 2 * u)
 
 
+_M1 = np.array([[0.4122214708, 0.5363325363, 0.0514459929],          # OKLab (Ottosson 2020)
+                [0.2119034982, 0.6806995451, 0.1073969566],
+                [0.0883024619, 0.2817188376, 0.6299787005]], np.float32)
+_M2 = np.array([[0.2104542553, 0.7936177850, -0.0040720468],
+                [1.9779984951, -2.4285922050, 0.4505937099],
+                [0.0259040371, 0.7827717662, -0.8086757660]], np.float32)
+_M1i, _M2i = np.linalg.inv(_M1).astype(np.float32), np.linalg.inv(_M2).astype(np.float32)
+
+
+def to_oklab(srgb):
+    lin = np.where(srgb <= 0.04045, srgb / 12.92, ((srgb + 0.055) / 1.055) ** 2.4)
+    return np.cbrt(lin @ _M1.T) @ _M2.T
+
+
+def from_oklab(lab):
+    lin = np.maximum(((lab @ _M2i.T) ** 3) @ _M1i.T, 0)
+    return np.where(lin <= 0.0031308, lin * 12.92, 1.055 * lin ** (1 / 2.4) - 0.055)
+
+
 class Post:
     def __init__(self, width):
         self.W, self.H = width, width * 9 // 16
@@ -65,6 +86,8 @@ class Post:
         self.ch = dict(np.load(AOUT / "channels.npz"))
         self.readout = [str(x) for x in self.ch["readout"]]
         self.F = len(self.plan["src"])
+        mlab = to_oklab(LUT)
+        self.mL, self.ma, self.mb = mlab[:, 0], mlab[:, 1], mlab[:, 2]     # lightness rises monotonically
         cfg = OCIO.Config.CreateFromFile(OCIO_CFG)
         dvt = OCIO.DisplayViewTransform()
         dvt.setSrc(cfg.getRoleColorSpace("scene_linear"))
@@ -118,11 +141,11 @@ class Post:
         return out
 
     def bloom(self, lin, strength):
-        hi = np.maximum(lin - 0.9, 0.0) + 0.04 * lin
+        hi = np.maximum(lin - 1.5, 0.0)                     # only what is brighter than paper white blooms
         acc = np.zeros_like(lin)
-        for r in (3, 9, 24, 64):
-            acc += cv2.GaussianBlur(hi, (0, 0), max(r * self.s, 0.6))
-        return lin + strength * acc / 4.0
+        for r, w in ((3, 1.0), (9, 0.8), (24, 0.6), (64, 0.4)):
+            acc += w * cv2.GaussianBlur(hi, (0, 0), max(r * self.s, 0.6))
+        return lin + strength * acc / 2.8
 
     def halation(self, lin, strength):
         hi = np.maximum(lum(lin) - 0.75, 0.0)
@@ -273,25 +296,29 @@ class Post:
         return cv2.remap(img, mx, my, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
 
     # ------------------------------------------------------------------ grade
-    def magma_grade(self, img, k):
-        """Pull every pixel toward the magma colour of its own brightness, then lock hues
-        into the magma range (violet .. magenta .. coral .. orange .. gold)."""
-        L = np.clip(lum(img), 0, 1)
-        g = img * (1 - k) + magma(np.clip(L * 1.3, 0, 1) ** 0.72) * k
-        hsv = cv2.cvtColor(np.clip(g, 0, 1).astype(np.float32), cv2.COLOR_RGB2HSV)   # H in degrees
-        hh = hsv[..., 0]
-        bad = (hh > 58) & (hh < 262)
-        to_gold = bad & (hh < 160)
-        hsv[..., 0] = np.where(to_gold, 50.0, np.where(bad, 268.0, hh))
-        hsv[..., 1] = np.where(bad, hsv[..., 1] * 0.45, hsv[..., 1])
-        return cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+    def magma_grade(self, img, k_hue=0.25, k_chroma=0.15):
+        """Pull every pixel's hue toward the magma hue at its own OKLab lightness. Lightness is kept
+        (blacks stay black), chroma meets the ramp partway, in-palette hues (violet, magenta, red,
+        orange, gold) drift a little and off-palette ones (greens, cyans, blues) fold all the way in."""
+        lab = to_oklab(np.clip(img, 0, 1).astype(np.float32))
+        L, a, b = lab[..., 0], lab[..., 1], lab[..., 2]
+        ma, mb = np.interp(L, self.mL, self.ma), np.interp(L, self.mL, self.mb)
+        C, h = np.hypot(a, b), np.arctan2(b, a)
+        dh = (np.arctan2(mb, ma) - h + np.pi) % (2 * np.pi) - np.pi      # shortest way round to the ramp's hue
+        deg = np.degrees(h) % 360.0                     # OKLab hue: red 29, orange 55, yellow 110, green 142,
+        off = np.clip(np.minimum(deg - 105.0, 280.0 - deg) / 20.0, 0, 1)    # cyan 195, blue 264, magenta 328
+        h2 = h + (k_hue + (1 - k_hue) * off) * dh
+        C2 = C * (1 - k_chroma) + np.hypot(ma, mb) * k_chroma
+        out = np.stack([L, C2 * np.cos(h2), C2 * np.sin(h2)], -1).astype(np.float32)
+        return np.clip(from_oklab(out), 0, 1).astype(np.float32)
 
     def grain(self, img, f):
         rng = np.random.default_rng(9000 + f)
         n = rng.normal(0, 1, (self.H // 2 + 1, self.W // 2 + 1)).astype(np.float32)
         n = cv2.resize(n, (self.W, self.H), interpolation=cv2.INTER_LINEAR)
         L = lum(img)[..., None]
-        return np.clip(img + n[..., None] * (0.028 * (0.35 + 0.65 * (1 - L))), 0, 1)
+        amp = 0.024 * smoothstep(0.0, 0.10, L) * (0.4 + 0.6 * (1 - L))      # grain lives in the mids; black stays black
+        return np.clip(img + n[..., None] * amp, 0, 1)
 
     def draw_readout(self, img, f):
         state = self.readout[f]
@@ -395,7 +422,7 @@ class Post:
         self.prev_clean = img.copy()
         self.prev_src = src_img
         # grade and finish
-        img = self.magma_grade(img, 0.42)
+        img = self.magma_grade(img)
         img = self.grain(img, f) * self.vign
         img = self.draw_readout(img, f)
         return img
