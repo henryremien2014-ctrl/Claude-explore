@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """MAGNETIC glitch post, keyed to the analysis.
 
-    post.py renders_dir out_dir [--width W] [--frames a-b] [--png-input]
+    post.py renders_dir out_dir [--width W] [--frames a-b] [--png-input] [--follow]
+
+--follow waits for each source frame to appear, so the post can trail a render in progress.
 
 Per output frame:
   1. source  - the frame plan picks the rendered frame (retrigger stutters, frame-rate holds,
@@ -18,6 +20,7 @@ import argparse
 import json
 import math
 import os
+import time
 from pathlib import Path
 
 os.environ.setdefault("OPENCV_IO_ENABLE_OPENEXR", "1")    # must be set before cv2 loads
@@ -516,14 +519,23 @@ def main():
     ap.add_argument("--width", type=int, default=1920)
     ap.add_argument("--frames", default=None)
     ap.add_argument("--png-input", action="store_true")
+    ap.add_argument("--follow", action="store_true")
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     post = Post(a.width)
+    src_dir = Path(a.renders)
+    ext = "png" if a.png_input else "exr"
     f0, f1 = (0, post.F - 1) if not a.frames else map(int, a.frames.split("-"))
     for f in range(f0, f1 + 1):
-        img = post.frame(f, Path(a.renders), a.png_input)
-        Image.fromarray((np.clip(img, 0, 1) * 255 + 0.5).astype(np.uint8)).save(out / f"p{f:04d}.png")
+        if a.follow and not post.plan["black"][f]:
+            need = src_dir / f"f{post.plan['src'][f]:04d}.{ext}"
+            while not need.exists():                              # the renderer renames a frame into place
+                time.sleep(10)                                    # only once it is complete
+        img = post.frame(f, src_dir, a.png_input)
+        tmp = out / f".p{f:04d}.png"
+        Image.fromarray((np.clip(img, 0, 1) * 255 + 0.5).astype(np.uint8)).save(tmp, format="PNG")
+        tmp.rename(out / f"p{f:04d}.png")
         if f % 24 == 0:
             print(f"post {f}/{post.F}", flush=True)
 
